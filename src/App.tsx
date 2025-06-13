@@ -129,7 +129,7 @@ const MainAntDApp: React.FC<MainAntdAppProps> = ({
   }, [location.pathname]);
 
   const tabTitleHandler = () => {
-    return 'CitrineOS';
+    return '7GEN';
   };
 
   return (
