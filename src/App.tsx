@@ -128,8 +128,23 @@ const MainAntDApp: React.FC<MainAntdAppProps> = ({
     return MenuSection.OVERVIEW;
   }, [location.pathname]);
 
+  // Get the section name from the current location
+  const sectionName = useMemo(() => {
+    if (location.pathname.startsWith(`/${MenuSection.LOCATIONS}`))
+      return 'Locations';
+    if (location.pathname.startsWith(`/${MenuSection.CHARGING_STATIONS}`))
+      return 'Charging Stations';
+    if (location.pathname.startsWith(`/${MenuSection.AUTHORIZATIONS}`))
+      return 'Authorizations';
+    if (location.pathname.startsWith(`/${MenuSection.TRANSACTIONS}`))
+      return 'Transactions';
+    if (location.pathname.startsWith(`/${MenuSection.OVERVIEW}`))
+      return 'Overview';
+    return '';
+  }, [location.pathname]);
+
   const tabTitleHandler = () => {
-    return 'CitrineOS';
+    return [sectionName, '7GEN'].filter(Boolean).join(' | ');
   };
 
   return (
@@ -230,7 +245,7 @@ export default function App() {
   }, []);
 
   /**
-   * Handle user’s choice:
+   * Handle user's choice:
    */
   const handleModalDecision = (agreed: boolean) => {
     saveTelemetryConsent(agreed);

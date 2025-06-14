@@ -66,8 +66,8 @@ export const TelemetryConsentModal: React.FC<TelemetryConsentModalProps> = ({
       ]}
     >
       <p>
-        CitrineOS collects anonymous usage metrics to help us improve the
-        product. Would you like to send these metrics?
+        7GEN collects anonymous usage metrics to help us improve the product.
+        Would you like to send these metrics?
       </p>
     </Modal>
   );
