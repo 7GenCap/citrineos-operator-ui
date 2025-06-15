@@ -1,0 +1,120 @@
+name: Build and Deploy Citrine OS Operator UI
+on:
+  push:
+    branches:
+      - dev  # or your default branch
+  pull_request:
+    branches:
+      - dev
+
+env:
+  IMAGE_NAME: citrineos-operator-ui
+  REGION: ${{ secrets.GCP_REGION }}
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker
+
+      - name: Build and Push Image using Dockerfile
+        run: |
+          set -e  # Exit on any error
+          
+          echo "Starting Cloud Build submission..."
+          BUILD_ID=$(gcloud builds submit \
+            --tag gcr.io/$PROJECT_ID/$IMAGE_NAME:latest \
+            --timeout=20m \
+            --format="value(id)" \
+            --async)
+          
+          echo "Build submitted with ID: $BUILD_ID"
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          
+          # Wait for build to complete by polling status
+          echo "Waiting for build to complete..."
+          BUILD_STATUS=""
+          TIMEOUT=1200  # 20 minutes timeout
+          ELAPSED=0
+          SLEEP_INTERVAL=30
+          
+          while [ "$BUILD_STATUS" != "SUCCESS" ] && [ "$BUILD_STATUS" != "FAILURE" ] && [ "$BUILD_STATUS" != "CANCELLED" ] && [ "$BUILD_STATUS" != "TIMEOUT" ]; do
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "❌ Build timed out after $TIMEOUT seconds"
+              exit 1
+            fi
+            
+            sleep $SLEEP_INTERVAL
+            ELAPSED=$((ELAPSED + SLEEP_INTERVAL))
+            
+            BUILD_STATUS=$(gcloud builds describe $BUILD_ID --region=global --format="value(status)" 2>/dev/null || echo "UNKNOWN")
+            echo "Build status after ${ELAPSED}s: $BUILD_STATUS"
+          done
+          
+          echo "Final build status: $BUILD_STATUS"
+          
+          if [ "$BUILD_STATUS" != "SUCCESS" ]; then
+            echo "❌ Build failed with status: $BUILD_STATUS"
+            echo "Check build logs at: https://console.cloud.google.com/cloud-build/builds/$BUILD_ID?project=$PROJECT_ID"
+            exit 1
+          fi
+          
+          echo "✅ Build completed successfully!"
+          
+          # Wait a moment for image to be fully available in registry
+          echo "Waiting for image to be available in Container Registry..."
+          sleep 10
+
+      - name: Deploy to Cloud Run
+        run: |
+          set -e  # Exit on any error
+          
+          IMAGE_URI="gcr.io/$PROJECT_ID/$IMAGE_NAME:latest"
+          echo "Preparing to deploy image: $IMAGE_URI"
+          
+          # Verify the image exists in the registry
+          echo "Verifying image exists in Container Registry..."
+          if ! gcloud container images describe $IMAGE_URI --quiet; then
+            echo "❌ Image not found in Container Registry: $IMAGE_URI"
+            echo "Available images for $IMAGE_NAME:"
+            gcloud container images list-tags gcr.io/$PROJECT_ID/$IMAGE_NAME --limit=5 || echo "No images found"
+            exit 1
+          fi
+          
+          echo "✅ Image verified in registry"
+          echo "Deploying to Cloud Run..."
+          
+          gcloud run deploy $IMAGE_NAME \
+            --image $IMAGE_URI \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \
+            --memory 512Mi \
+            --cpu 1 \
+            --max-instances 10 \
+            --timeout 300
+          
+          echo "✅ Deployment completed successfully!"
+          
+          # Get the service URL
+          SERVICE_URL=$(gcloud run services describe $IMAGE_NAME --region=us-central1 --format="value(status.url)")
+          echo "🚀 Service deployed at: $SERVICE_URL"

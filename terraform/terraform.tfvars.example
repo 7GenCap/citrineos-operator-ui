@@ -1,0 +1,7 @@
+# Copy this file to terraform.tfvars and update with your values
+
+# Your GCP Project ID
+project_id = "citrine-os-operator-ui"
+
+# Your preferred GCP region
+region = "northamerica-northeast1" 
