@@ -1,0 +1,18 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Service account keys
+key.json
+key.json.b64
+*.json
+
+# OS files
+.DS_Store
+Thumbs.db 
